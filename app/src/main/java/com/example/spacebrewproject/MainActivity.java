@@ -77,10 +77,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         rnd = new Random();
-        id = rnd.nextInt(1000000); // TODO: This id should be obtained through communications with the spacebrew command server, so there's no id collision.
-        final String publish_str = "button_pressed_";// + id;
 
-        server = "ws://192.168.100.100:9000";
+        server = "ws://192.168.0.10:9000";
         name = "P5 Button Example " + id;
         description = "Client that sends and receives boolean messages. Background turns yellow when message received.";
 
@@ -93,8 +91,8 @@ public class MainActivity extends AppCompatActivity {
         mainPlayerView = (EPlayerView)findViewById(R.id.mainPlayerView);
 
         // Add sub-pub interactions to spacebrew
-        sb.addPublish( publish_str, "boolean", true );
-        sb.addSubscribe( "change_background", "boolean" );
+        sb.addPublish( "device_publisher", "string", "" );
+        sb.addSubscribe( "device_subscribe", "string", "" );
 
         // connect to the server specified previously
         sb.connect(server, name, description);
@@ -113,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
                 if (playbackState == 4) {
-                    sb.send( publish_str, true);
+                    sb.send( "device_publisher", "1:video_finished");
                     goToNextVideo();
                 }
                 //Log.d("PLAYERSTATE", playWhenReady + "" + playbackState);
@@ -128,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 // Send a message to the spacebrew server indication the button has been pressed
-                sb.send( publish_str, true);
+                sb.send( "device_publisher", "1:skip_button_pressed");
                 goToNextVideo();
             }
         });
