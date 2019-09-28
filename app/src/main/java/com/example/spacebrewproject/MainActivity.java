@@ -77,8 +77,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         rnd = new Random();
+        id = 2; //TODO: Assign this value with communication to the server
 
-        server = "ws://192.168.0.10:9000";
+        server = "ws://192.168.100.100:9000";
         name = "P5 Button Example " + id;
         description = "Client that sends and receives boolean messages. Background turns yellow when message received.";
 
@@ -111,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
                 if (playbackState == 4) {
-                    sb.send( "device_publisher", "1:video_finished");
+                    sb.send( "device_publisher", id + ":video_finished");
                     goToNextVideo();
                 }
                 //Log.d("PLAYERSTATE", playWhenReady + "" + playbackState);
@@ -126,31 +127,47 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 // Send a message to the spacebrew server indication the button has been pressed
-                sb.send( "device_publisher", "1:skip_button_pressed");
+                sb.send( "device_publisher", id + ":skip_button_pressed");
                 goToNextVideo();
             }
         });
     }
 
-    /** This function runs when a boolean message is received from spacebrew. */
-    public void onBooleanMessage( String name, boolean value ){
+    /** This function runs when a string message is received from spacebrew. */
+    public void onStringMessage( String name, String value ){
 
-        final int color = Color.argb(255, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256));
-        goToNextVideo();
-        Log.d("COLOR", color + "");
+        String[] command = value.split(":");
 
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (rnd.nextInt(2) == 1) {
-                    mainPlayerView.setGlFilter(new GlSwirlFilter());
+        int rcvdId = Integer.parseInt(command[0]);
+
+        if (rcvdId != id) {
+            // Ignore all messages that do not concern you
+            return;
+        }
+
+        if (command[1].equals("unknown_command")) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    GlitchEffect.showGlitch(act);
                 }
-                else {
-                    mainPlayerView.setGlFilter(new GlVignetteFilter());
-                }
-                GlitchEffect.showGlitch(act);
-            }
-        });
+            });
+        }
+
+
+
+        //runOnUiThread(new Runnable() {
+        //    @Override
+        //    public void run() {
+        //        if (rnd.nextInt(2) == 1) {
+        //            mainPlayerView.setGlFilter(new GlSwirlFilter());
+        //        }
+        //        else {
+        //            mainPlayerView.setGlFilter(new GlVignetteFilter());
+        //        }
+        //        GlitchEffect.showGlitch(act);
+        //    }
+        //});
 
 
         //runOnUiThread(new Runnable() {
