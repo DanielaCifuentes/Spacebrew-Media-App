@@ -1,45 +1,24 @@
 package com.example.spacebrewproject;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.SeekBar;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.daasuu.epf.EPlayerView;
-import com.daasuu.epf.filter.GlBilateralFilter;
-import com.daasuu.epf.filter.GlBulgeDistortionFilter;
-import com.daasuu.epf.filter.GlCGAColorspaceFilter;
-import com.daasuu.epf.filter.GlCrosshatchFilter;
-import com.daasuu.epf.filter.GlExposureFilter;
-import com.daasuu.epf.filter.GlHalftoneFilter;
-import com.daasuu.epf.filter.GlHazeFilter;
-import com.daasuu.epf.filter.GlHighlightShadowFilter;
-import com.daasuu.epf.filter.GlInvertFilter;
-import com.daasuu.epf.filter.GlLookUpTableFilter;
-import com.daasuu.epf.filter.GlLuminanceFilter;
-import com.daasuu.epf.filter.GlLuminanceThresholdFilter;
-import com.daasuu.epf.filter.GlPixelationFilter;
-import com.daasuu.epf.filter.GlRGBFilter;
-import com.daasuu.epf.filter.GlSepiaFilter;
-import com.daasuu.epf.filter.GlSolarizeFilter;
-import com.daasuu.epf.filter.GlSphereRefractionFilter;
-import com.daasuu.epf.filter.GlSwirlFilter;
-import com.daasuu.epf.filter.GlThreex3TextureSamplingFilter;
-import com.daasuu.epf.filter.GlToneCurveFilter;
-import com.daasuu.epf.filter.GlToneFilter;
-import com.daasuu.epf.filter.GlVignetteFilter;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
@@ -52,6 +31,7 @@ import java.util.Random;
 
 import spacebrew.Spacebrew;
 
+@RequiresApi(api = Build.VERSION_CODES.O)
 public class MainActivity extends AppCompatActivity {
 
     private String server; //properties for spacebrew
@@ -62,10 +42,11 @@ public class MainActivity extends AppCompatActivity {
 
     private SimpleExoPlayer player;
     private EPlayerView mainPlayerView;
-    private Button sbInteractBtn;
-    private List<String> sourceList = Arrays.asList("file:///android_asset/video.mp4", "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4");
+    private Button skipBtn;
+    private SeekBar controlSkBar;
+    private List<String> sourceList = Arrays.asList("http://192.168.0.7:7777/01.mp4", "file:///android_asset/video.mp4");
     private int sourceIdx = 0;
-    private int id;
+    private long id = java.time.Instant.now().getEpochSecond();
     private Activity act = this;
 
     /** Run this on application start*/
@@ -76,17 +57,19 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // force keep-awake
         setContentView(R.layout.activity_main);
 
-        rnd = new Random();
-        id = 2; //TODO: Assign this value with communication to the server
+        Log.d("DEVICE_ID", id + "");
 
-        server = "ws://192.168.100.100:9000";
-        name = "P5 Button Example " + id;
+        rnd = new Random();
+
+        server = "ws://192.168.0.7:9000";
+        name = "Skip Button " + id;
         description = "Client that sends and receives boolean messages. Background turns yellow when message received.";
 
         SpacebrewCallbacks sketch = new SpacebrewCallbacks(this); // Spacebrew requires a processing sketch to run
         final Spacebrew sb = new Spacebrew(sketch);
 
-        sbInteractBtn = (Button)findViewById(R.id.sbInteractBtn);
+        skipBtn = (Button)findViewById(R.id.skipBtn);
+        controlSkBar = (SeekBar) findViewById(R.id.controlSkBar);
 
         player = ExoPlayerFactory.newSimpleInstance(this.getApplicationContext());
         mainPlayerView = (EPlayerView)findViewById(R.id.mainPlayerView);
@@ -112,6 +95,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
                 if (playbackState == 4) {
+                    // If video finishes then run this
                     sb.send( "device_publisher", id + ":video_finished");
                     goToNextVideo();
                 }
@@ -123,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
 
         // add a listener to the layout button that interacts with spacebrew.
         /** This runs every time the user clicks the button */
-        sbInteractBtn.setOnClickListener(new View.OnClickListener() {
+        skipBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 // Send a message to the spacebrew server indication the button has been pressed
@@ -131,6 +115,42 @@ public class MainActivity extends AppCompatActivity {
                 goToNextVideo();
             }
         });
+
+
+        // add a listener to the layout seek bar that interacts with spacebrew.
+        controlSkBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            // Store raw position
+            int progressChangedValue = 127;
+            int epsilon = 10;
+            boolean hasChanged = false;
+
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (progress > progressChangedValue + epsilon || progress < progressChangedValue - epsilon) {
+                    progressChangedValue = progress;
+                    hasChanged = true;
+                    Log.d("SEEKBARSTATE", progressChangedValue + "");
+                    sb.send("device_publisher", id + ":seekbar_changed:progress=" + progressChangedValue);
+                }
+
+                // Value hasn't changed. Reset to idle state
+                if (progress == progressChangedValue) {
+                    hasChanged = false;
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
+
     }
 
     /** This function runs when a string message is received from spacebrew. */
