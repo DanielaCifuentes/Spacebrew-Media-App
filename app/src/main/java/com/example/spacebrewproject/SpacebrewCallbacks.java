@@ -21,11 +21,11 @@ public class SpacebrewCallbacks extends PApplet {
 
 
     /** Define spacebrew's callback inside the sketch. This is the callback that spacebrew uses */
-    public void onBooleanMessage( String name, boolean value ){
+    public void onStringMessage( String name, String value ){
         Log.d("MESSAGE", "Received a boolean message");
 
         // Access the main activity callback. This way, spacebrew can interact with the main activity through processing
-        act.onBooleanMessage(name, value);
+        act.onStringMessage(name, value);
     }
 
 }
