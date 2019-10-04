@@ -31,8 +31,9 @@ import java.util.Random;
 
 import spacebrew.Spacebrew;
 
-@RequiresApi(api = Build.VERSION_CODES.O)
 public class MainActivity extends AppCompatActivity {
+
+    private String ip = "192.168.0.100";
 
     private String server; //properties for spacebrew
     private String name; //properties for spacebrew
@@ -44,9 +45,15 @@ public class MainActivity extends AppCompatActivity {
     private EPlayerView mainPlayerView;
     private Button skipBtn;
     private SeekBar controlSkBar;
-    private List<String> sourceList = Arrays.asList("http://192.168.0.7:7777/01.mp4", "file:///android_asset/video.mp4");
+    private List<String> sourceList = Arrays.asList(
+            "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "file:///android_asset/video.mp4",
+            "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+            "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            "http://" + ip + ":7777/video.mp4",
+            "http://" + ip + ":7777/01.mp4");
     private int sourceIdx = 0;
-    private long id = java.time.Instant.now().getEpochSecond();
+    private long id = System.currentTimeMillis();
     private Activity act = this;
 
     /** Run this on application start*/
@@ -61,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
         rnd = new Random();
 
-        server = "ws://192.168.0.7:9000";
+        server = "ws://" + ip + ":9000";
         name = "Skip Button " + id;
         description = "Client that sends and receives boolean messages. Background turns yellow when message received.";
 
