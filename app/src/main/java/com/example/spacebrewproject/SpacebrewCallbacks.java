@@ -1,5 +1,6 @@
 package com.example.spacebrewproject;
 
+import android.os.AsyncTask;
 import android.util.Log;
 import processing.core.PApplet;
 
@@ -21,11 +22,15 @@ public class SpacebrewCallbacks extends PApplet {
 
 
     /** Define spacebrew's callback inside the sketch. This is the callback that spacebrew uses */
-    public void onStringMessage( String name, String value ){
-        Log.d("MESSAGE", "Received a boolean message");
+    public void onStringMessage(final String name, final String value ){
 
-        // Access the main activity callback. This way, spacebrew can interact with the main activity through processing
-        act.onStringMessage(name, value);
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                // Access the main activity callback. This way, spacebrew can interact with the main activity through processing
+                act.onStringMessage(name, value);
+            }
+        });
     }
 
 }

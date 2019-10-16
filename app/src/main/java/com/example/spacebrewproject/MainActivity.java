@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.daasuu.epf.EPlayerView;
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.MediaSource;
@@ -33,7 +34,7 @@ import spacebrew.Spacebrew;
 
 public class MainActivity extends AppCompatActivity {
 
-    private String ip = "192.168.0.100";
+    private String ip = "192.168.43.251";
 
     private String server; //properties for spacebrew
     private String name; //properties for spacebrew
@@ -46,15 +47,18 @@ public class MainActivity extends AppCompatActivity {
     private Button skipBtn;
     private SeekBar controlSkBar;
     private List<String> sourceList = Arrays.asList(
-            "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-            "file:///android_asset/video.mp4",
-            "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-            "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-            "http://" + ip + ":7777/video.mp4",
-            "http://" + ip + ":7777/01.mp4");
+            "file:///android_asset/1.mp4",
+            "file:///android_asset/2.mp4",
+            "file:///android_asset/3.mp4",
+            "file:///android_asset/4.mp4",
+            "file:///android_asset/5.mp4");
+
     private int sourceIdx = 0;
     private long id = System.currentTimeMillis();
     private Activity act = this;
+
+    private SpacebrewCallbacks sketch;
+    private Spacebrew sb;
 
     /** Run this on application start*/
     @Override
@@ -72,8 +76,8 @@ public class MainActivity extends AppCompatActivity {
         name = "Skip Button " + id;
         description = "Client that sends and receives boolean messages. Background turns yellow when message received.";
 
-        SpacebrewCallbacks sketch = new SpacebrewCallbacks(this); // Spacebrew requires a processing sketch to run
-        final Spacebrew sb = new Spacebrew(sketch);
+        sketch = new SpacebrewCallbacks(this); // Spacebrew requires a processing sketch to run
+        sb = new Spacebrew(sketch);
 
         skipBtn = (Button)findViewById(R.id.skipBtn);
         controlSkBar = (SeekBar) findViewById(R.id.controlSkBar);
@@ -120,6 +124,14 @@ public class MainActivity extends AppCompatActivity {
                 // Send a message to the spacebrew server indication the button has been pressed
                 sb.send( "device_publisher", id + ":skip_button_pressed");
                 goToNextVideo();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        GlitchEffect.showGlitch(act);
+                    }
+                });
+
+
             }
         });
 
@@ -130,6 +142,7 @@ public class MainActivity extends AppCompatActivity {
             int progressChangedValue = 127;
             int epsilon = 10;
             boolean hasChanged = false;
+            float speed = 1.0f;
 
 
             @Override
@@ -137,8 +150,11 @@ public class MainActivity extends AppCompatActivity {
                 if (progress > progressChangedValue + epsilon || progress < progressChangedValue - epsilon) {
                     progressChangedValue = progress;
                     hasChanged = true;
+                    speed = progressChangedValue/255.0f*1.8f+0.1f;
                     Log.d("SEEKBARSTATE", progressChangedValue + "");
                     sb.send("device_publisher", id + ":seekbar_changed:progress=" + progressChangedValue);
+                    PlaybackParameters param = new PlaybackParameters(speed);
+                    player.setPlaybackParameters(param);
                 }
 
                 // Value hasn't changed. Reset to idle state
@@ -164,13 +180,18 @@ public class MainActivity extends AppCompatActivity {
     public void onStringMessage( String name, String value ){
 
         String[] command = value.split(":");
+        Log.d("RCVD_COMMAND", command[0]);
 
-        int rcvdId = Integer.parseInt(command[0]);
+
+        long rcvdId = Long.valueOf(command[0]);
+
 
         if (rcvdId != id) {
             // Ignore all messages that do not concern you
+            Log.d("WRONG_ID", command[1]);
             return;
         }
+
 
         if (command[1].equals("unknown_command")) {
             runOnUiThread(new Runnable() {
@@ -181,28 +202,10 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-
-
-        //runOnUiThread(new Runnable() {
-        //    @Override
-        //    public void run() {
-        //        if (rnd.nextInt(2) == 1) {
-        //            mainPlayerView.setGlFilter(new GlSwirlFilter());
-        //        }
-        //        else {
-        //            mainPlayerView.setGlFilter(new GlVignetteFilter());
-        //        }
-        //        GlitchEffect.showGlitch(act);
-        //    }
-        //});
-
-
-        //runOnUiThread(new Runnable() {
-        //    @Override
-        //    public void run() {
-        //        mainPlayerView.setBackgroundColor(color);
-        //    }
-        //});
+        if (command[1].equals("ping")) {
+            Log.d("PING", rcvdId + "");
+            sb.send("device_publisher", id + ":ping");
+        }
     }
 
     private void goToNextVideo() {
