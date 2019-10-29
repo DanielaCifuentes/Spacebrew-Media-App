@@ -2,7 +2,6 @@ package com.example.spacebrewproject;
 
 import android.app.Activity;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -10,10 +9,11 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.SeekBar;
 
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.daasuu.epf.EPlayerView;
+import com.daasuu.epf.filter.GlContrastFilter;
+import com.daasuu.epf.filter.GlFilter;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
@@ -27,7 +27,9 @@ import com.google.android.exoplayer2.util.Util;
 import org.jraf.android.alibglitch.GlitchEffect;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import spacebrew.Spacebrew;
@@ -59,6 +61,10 @@ public class MainActivity extends AppCompatActivity {
 
     private SpacebrewCallbacks sketch;
     private Spacebrew sb;
+
+    private float contrast_val = 0.5f;
+    private final GlContrastFilter contrast = new GlContrastFilter();
+
 
     /** Run this on application start*/
     @Override
@@ -99,6 +105,9 @@ public class MainActivity extends AppCompatActivity {
         final MediaSource videoSource = new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(Uri.parse(sourceList.get(sourceIdx)));
 
         player.prepare(videoSource);
+
+        applyFilter(contrast);
+
         player.setPlayWhenReady(true);
         mainPlayerView.onResume();
 
@@ -142,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
             int progressChangedValue = 127;
             int epsilon = 10;
             boolean hasChanged = false;
-            float speed = 1.0f;
+            int idleInst = 1000;
 
 
             @Override
@@ -150,15 +159,15 @@ public class MainActivity extends AppCompatActivity {
                 if (progress > progressChangedValue + epsilon || progress < progressChangedValue - epsilon) {
                     progressChangedValue = progress;
                     hasChanged = true;
-                    speed = progressChangedValue/255.0f*1.8f+0.1f;
+                    //float brightness_value = progressChangedValue/255f*10 - 5f;
+                   // changeBrightness(brightness_value, 150);
                     Log.d("SEEKBARSTATE", progressChangedValue + "");
                     sb.send("device_publisher", id + ":seekbar_changed:progress=" + progressChangedValue);
-                    PlaybackParameters param = new PlaybackParameters(speed);
-                    player.setPlaybackParameters(param);
+
                 }
 
                 // Value hasn't changed. Reset to idle state
-                if (progress == progressChangedValue) {
+                if (hasChanged && progress == progressChangedValue) {
                     hasChanged = false;
                 }
             }
@@ -180,7 +189,8 @@ public class MainActivity extends AppCompatActivity {
     public void onStringMessage( String name, String value ){
 
         String[] command = value.split(":");
-        Log.d("RCVD_COMMAND", command[0]);
+        Log.d("RCVD_COMMAND", command[1]);
+
 
 
         long rcvdId = Long.valueOf(command[0]);
@@ -192,20 +202,51 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        Map<String, String> args = new HashMap<String, String>();
 
-        if (command[1].equals("unknown_command")) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    GlitchEffect.showGlitch(act);
+        if (command.length == 3) {
+
+            String[] argument_lists = command[2].split(",");
+            for (int i = 0; i < argument_lists.length; i++) {
+                String raw_arg = argument_lists[i];
+                if (raw_arg.contains("=")) {
+                    String[] arg = raw_arg.split("=");
+                    args.put(arg[0], arg[1]);
                 }
-            });
+            }
         }
 
-        if (command[1].equals("ping")) {
-            Log.d("PING", rcvdId + "");
-            sb.send("device_publisher", id + ":ping");
+        Log.d("RCVD_ARGS", String.valueOf(args));
+
+        switch(command[1]) {
+            case "unknown_command":
+                // The backend couldn't understand the command. Respond visually
+                addGlitch();
+                break;
+
+            case "ping":
+                // A ping was received, send a ping back
+                Log.d("PING", rcvdId + "");
+                sb.send("device_publisher", id + ":ping");
+                break;
+
+            case "change_video_speed":
+                float speed = Float.parseFloat(args.get("speed"));
+                changeVideoSpeed(speed);
+                break;
+
+            case "apply_contrast":
+                float contrast_value = Float.parseFloat(args.get("value"));
+                float apply_time = Float.parseFloat(args.get("time"));
+                applyFilter(contrast);
+                changeContrast(contrast_value, apply_time);
+                break;
+
+            default:
+                // The command received was not recognized. Log this situation
+                Log.d("UNRECOGNIZED_CMD", command[1] + "");
         }
+
     }
 
     private void goToNextVideo() {
@@ -218,7 +259,52 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 MediaSource nextVideoSource = new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(Uri.parse(sourceList.get(sourceIdx)));
                 player.prepare(nextVideoSource);
+
             }
         });
+
+        addGlitch();
+    }
+
+    private void changeVideoSpeed(float speed) {
+        PlaybackParameters param = new PlaybackParameters(speed);
+        player.setPlaybackParameters(param);
+    }
+
+    private void addGlitch() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                GlitchEffect.showGlitch(act);
+            }
+        });
+    }
+
+    void applyFilter(GlFilter filter) {
+        mainPlayerView.setGlFilter(filter);
+    }
+
+    void changeContrast(final double final_contrast, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = final_contrast - contrast_val;
+                double amount_step = change_amount / time_ms;
+                float contrast_value = contrast_val;
+                for (int i = 0; i < time_ms; i++) {
+                    contrast_value += amount_step;
+                    Log.d("CONTRAST_VAL", contrast_value + "");
+                    contrast.setContrast(contrast_value);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                contrast_val = (float) final_contrast;
+                contrast.setContrast(contrast_val);
+            }
+        };
+        thread.start();
     }
 }
