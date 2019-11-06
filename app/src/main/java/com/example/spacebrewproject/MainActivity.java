@@ -1,6 +1,7 @@
 package com.example.spacebrewproject;
 
 import android.app.Activity;
+import android.graphics.PointF;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -12,8 +13,16 @@ import android.widget.SeekBar;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.daasuu.epf.EPlayerView;
+import com.daasuu.epf.filter.GlBrightnessFilter;
+import com.daasuu.epf.filter.GlCGAColorspaceFilter;
 import com.daasuu.epf.filter.GlContrastFilter;
+import com.daasuu.epf.filter.GlExposureFilter;
 import com.daasuu.epf.filter.GlFilter;
+import com.daasuu.epf.filter.GlHalftoneFilter;
+import com.daasuu.epf.filter.GlRGBFilter;
+import com.daasuu.epf.filter.GlSharpenFilter;
+import com.daasuu.epf.filter.GlSolarizeFilter;
+import com.daasuu.epf.filter.GlZoomBlurFilter;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
@@ -65,6 +74,26 @@ public class MainActivity extends AppCompatActivity {
     private float contrast_val = 0.5f;
     private final GlContrastFilter contrast = new GlContrastFilter();
 
+    private float brightness_val = 0f;
+    private final GlBrightnessFilter brightness = new GlBrightnessFilter();
+
+    private float exposure_val = 1f;
+    private final GlExposureFilter exposure = new GlExposureFilter();
+
+    private float blur_val = 1f;
+    private final GlZoomBlurFilter blur = new GlZoomBlurFilter();
+    //private PointF blurCenter = new PointF(0.5f, 0.5f);
+
+    private float rgb_val = 1f;
+    private final GlRGBFilter RGB = new GlRGBFilter();
+
+    private float halftone_val = 0.00000000001F;
+    private final GlHalftoneFilter halftone = new GlHalftoneFilter();
+    //private float aspectRatio = 1f;
+
+    private float solarize_val = 0.5F;
+    private final GlSolarizeFilter solarize = new GlSolarizeFilter();
+
 
     /** Run this on application start*/
     @Override
@@ -106,7 +135,7 @@ public class MainActivity extends AppCompatActivity {
 
         player.prepare(videoSource);
 
-        applyFilter(contrast);
+        //applyFilter(solarize);
 
         player.setPlayWhenReady(true);
         mainPlayerView.onResume();
@@ -149,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
         controlSkBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             // Store raw position
             int progressChangedValue = 127;
-            int epsilon = 10;
+            int epsilon = 1;
             boolean hasChanged = false;
             int idleInst = 1000;
 
@@ -159,8 +188,8 @@ public class MainActivity extends AppCompatActivity {
                 if (progress > progressChangedValue + epsilon || progress < progressChangedValue - epsilon) {
                     progressChangedValue = progress;
                     hasChanged = true;
-                    //float brightness_value = progressChangedValue/255f*10 - 5f;
-                   // changeBrightness(brightness_value, 150);
+                    //float solarize_value = progressChangedValue / 255f ;
+                    //changeSolarize(solarize_value, 500);
                     Log.d("SEEKBARSTATE", progressChangedValue + "");
                     sb.send("device_publisher", id + ":seekbar_changed:progress=" + progressChangedValue);
 
@@ -219,6 +248,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d("RCVD_ARGS", String.valueOf(args));
 
         switch(command[1]) {
+
             case "unknown_command":
                 // The backend couldn't understand the command. Respond visually
                 addGlitch();
@@ -237,12 +267,54 @@ public class MainActivity extends AppCompatActivity {
 
             case "apply_contrast":
                 float contrast_value = Float.parseFloat(args.get("value"));
-                float apply_time = Float.parseFloat(args.get("time"));
+                float contrast_time = Float.parseFloat(args.get("time"));
                 applyFilter(contrast);
-                changeContrast(contrast_value, apply_time);
+                changeContrast(contrast_value, contrast_time);
                 break;
 
-            default:
+            case "apply_brightness":
+                float brightness_value = Float.parseFloat(args.get("value"));
+                float brightness_time = Float.parseFloat(args.get("time"));
+                applyFilter(brightness);
+                changeBrightness(brightness_value, brightness_time);
+                break;
+
+            case "apply_exposure":
+                float exposure_value = Float.parseFloat(args.get("value"));
+                float exposure_time = Float.parseFloat(args.get("time"));
+                applyFilter(exposure);
+                changeExposure(exposure_value, exposure_time);
+                break;
+
+            case "apply_blur": /*TODO RECUERDA LO DEL CENTRO*/
+                float blur_value = Float.parseFloat(args.get("value"));
+                float blur_time = Float.parseFloat(args.get("time"));
+                applyFilter(blur);
+                changeBlur(blur_value, blur_time);
+                break;
+
+            case "apply_rgb":
+                float rgb_value = Float.parseFloat(args.get("value"));
+                float rgb_time = Float.parseFloat(args.get("time"));
+                applyFilter(RGB);
+                changeRgb(rgb_value, rgb_time);
+                break;
+
+            case "apply_halftone": /*TODO RECUERDA LO DEL DIAMETRO*/
+                float halftone_value = Float.parseFloat(args.get("value"));
+                float halftone_time = Float.parseFloat(args.get("time"));
+                applyFilter(halftone);
+                changeHalftone(halftone_value, halftone_time);
+                break;
+
+            case "apply_solarize":
+                float solarize_value = Float.parseFloat(args.get("value"));
+                float solarize_time = Float.parseFloat(args.get("time"));
+                applyFilter(solarize);
+                changeSolarize(solarize_value, solarize_time);
+                break;
+
+                default:
                 // The command received was not recognized. Log this situation
                 Log.d("UNRECOGNIZED_CMD", command[1] + "");
         }
@@ -307,4 +379,160 @@ public class MainActivity extends AppCompatActivity {
         };
         thread.start();
     }
+    void changeBrightness(final double final_brightness, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = final_brightness - brightness_val;
+                double amount_step = change_amount / time_ms;
+                float brightness_value = brightness_val;
+                for (int i = 0; i < time_ms; i++) {
+                    brightness_value += amount_step;
+                    Log.d("BRIGHTNESS_VAL", brightness_value + "");
+                    brightness.setBrightness(brightness_value);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                brightness_val = (float) final_brightness;
+                brightness.setBrightness(brightness_val);
+            }
+        };
+        thread.start();
+    }
+
+    void changeExposure(final double final_exposure, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = final_exposure - exposure_val;
+                double amount_step = change_amount / time_ms;
+                float exposure_value = exposure_val;
+                for (int i = 0; i < time_ms; i++) {
+                    exposure_value += amount_step;
+                    Log.d("EXPOSURE_VAL", exposure_value + "");
+                    exposure.setExposure(exposure_value);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                exposure_val = (float) final_exposure;
+                exposure.setExposure(exposure_val);
+            }
+        };
+        thread.start();
+    }
+
+    void changeBlur(final double final_blur, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = final_blur - blur_val;
+                double amount_step = change_amount / time_ms;
+                float blur_value = blur_val;
+                for (int i = 0; i < time_ms; i++) {
+                    blur_value += amount_step;
+                    Log.d("BLUR_VAL", blur_value + "");
+                    blur.setBlurSize(blur_value);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                blur_val = (float) final_blur;
+                blur.setBlurSize(blur_val);
+            }
+        };
+        thread.start();
+    }
+
+    void changeRgb(final double rgb_range, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = rgb_range - rgb_val;
+                float red;
+                float green;
+                float blue;
+
+                double amount_step = change_amount / time_ms;
+                float rgb_value = rgb_val;
+                for (int i = 0; i < time_ms; i++) {
+                    rgb_value += amount_step;
+                    Log.d("RGB_VAL", rgb_value + "");
+
+                    red = (Math.abs(rgb_value - 1.5f) - 0.5f);
+                    red = Math.max(Math.min(red,1) ,0);
+                    green = (-Math.abs(rgb_value - 1f) + 1f);
+                    green = Math.max(Math.min(green,1) ,0);
+                    blue = (-Math.abs(rgb_value - 2f) + 1f);
+                    blue = Math.max(Math.min(blue,1) ,0);
+
+                    RGB.setRed(red);
+                    RGB.setGreen(green);
+                    RGB.setBlue(blue);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                rgb_val = (float) rgb_range;
+            }
+        };
+        thread.start();
+    }
+    void changeHalftone(final double final_halftone, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = final_halftone - halftone_val;
+                double amount_step = change_amount / time_ms;
+                float halftone_value = halftone_val;
+                for (int i = 0; i < time_ms; i++) {
+                    halftone_value += amount_step;
+                    Log.d("HALFTONE_VAL", halftone_value + "");
+                    halftone.setFractionalWidthOfAPixel(halftone_value);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                halftone_val = (float) final_halftone;
+                halftone.setFractionalWidthOfAPixel(halftone_val);
+            }
+        };
+        thread.start();
+    }
+
+    void changeSolarize(final double final_solarize, final double time_ms) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                double change_amount = final_solarize - solarize_val;
+                double amount_step = change_amount / time_ms;
+                float solarize_value = solarize_val;
+                for (int i = 0; i < time_ms; i++) {
+                    solarize_value += amount_step;
+                    Log.d("SOLARIZE_VAL", solarize_value + "");
+                    solarize.setThreshold(solarize_value);
+                    try {
+                        sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                solarize_val = (float) final_solarize;
+                solarize.setThreshold(solarize_val);
+            }
+        };
+        thread.start();
+    }
 }
+
